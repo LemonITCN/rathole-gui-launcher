@@ -1,0 +1,67 @@
+@import "ant-design-vue/dist/reset.css";
+
+:root {
+  --rl-bg: #f5f6f8;
+  --rl-surface: #ffffff;
+  --rl-border: #e7e9ee;
+  --rl-text: #1f2329;
+  --rl-text-muted: #6c727f;
+  --rl-accent: #2563eb;
+  --rl-success: #15a34a;
+  --rl-warning: #d97706;
+  --rl-danger: #dc2626;
+  --rl-radius: 10px;
+  --rl-radius-sm: 6px;
+  --rl-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --rl-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--rl-bg);
+  color: var(--rl-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.rl-mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, "JetBrains Mono",
+    Consolas, "Liberation Mono", monospace;
+}
+
+.rl-muted {
+  color: var(--rl-text-muted);
+}
+
+.rl-card {
+  background: var(--rl-surface);
+  border: 1px solid var(--rl-border);
+  border-radius: var(--rl-radius);
+  box-shadow: var(--rl-shadow-sm);
+}
+
+.rl-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rl-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ant-layout {
+  background: var(--rl-bg);
+}

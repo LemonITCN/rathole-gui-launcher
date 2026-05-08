@@ -1,0 +1,110 @@
+name: Release
+
+# Triggers:
+#   - Pushing a tag like `v0.1.0` builds and uploads bundles to a draft release.
+#   - Manual `workflow_dispatch` only builds; nothing is uploaded to a release.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            args: ""
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: ""
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            libgtk-3-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build and (optionally) release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Apple code signing (optional). Set these as repository secrets to
+          # produce signed and notarized macOS bundles. When empty the build
+          # still succeeds but produces unsigned artifacts.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows signing (optional).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          # When the workflow is triggered by a tag push, tauri-action attaches
+          # the produced bundles to a draft release named after the tag. When
+          # triggered manually (workflow_dispatch) tagName is empty, so the
+          # action only builds and the artifacts stay on the workflow run.
+          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          releaseName: ${{ github.event_name == 'push' && 'Rathole Launcher __VERSION__' || '' }}
+          releaseBody: |
+            Pick the bundle that matches your platform and architecture.
+
+            | Platform | Files |
+            | --- | --- |
+            | macOS (Apple Silicon) | `*_aarch64.dmg`, `*_aarch64.app.tar.gz` |
+            | macOS (Intel) | `*_x64.dmg`, `*_x64.app.tar.gz` |
+            | Windows (x64) | `*_x64-setup.exe`, `*_x64_en-US.msi` |
+            | Linux (x64) | `*_amd64.deb`, `*_amd64.AppImage`, `*.rpm` |
+
+            After installing, drop the matching `rathole` (or `rathole.exe`) binary into the launcher's working directory. The launcher will pick it up automatically; you can also override the path under **Settings**.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: false
+          args: ${{ matrix.args }}

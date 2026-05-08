@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Rathole Launcher",
+  "version": "0.1.0",
+  "identifier": "cn.lemonit.rathole-launcher",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Rathole Launcher",
+        "width": 1080,
+        "height": 720,
+        "minWidth": 880,
+        "minHeight": 560,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "GUI launcher for the rathole reverse proxy.",
+    "longDescription": "Cross-platform desktop launcher for the rathole reverse proxy. Edit configurations and manage server/client instances without touching the command line.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {},
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
+  }
+}
