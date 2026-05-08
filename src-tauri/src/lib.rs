@@ -99,8 +99,13 @@ pub fn run() {
                 });
             }
         }
-        RunEvent::Reopen { has_visible_windows, .. } => {
-            // macOS dock-icon click while the window is hidden brings it back.
+        // `Reopen` is a macOS-only variant (Dock click while the window is
+        // hidden); it does not exist in `RunEvent` on Windows / Linux.
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen {
+            has_visible_windows,
+            ..
+        } => {
             if !has_visible_windows {
                 if let Some(window) = handle.get_webview_window("main") {
                     let _ = window.show();

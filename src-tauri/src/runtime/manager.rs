@@ -155,7 +155,9 @@ impl ProcessManager {
 
         #[cfg(windows)]
         {
-            use std::os::windows::process::CommandExt;
+            // `creation_flags` is provided directly on `tokio::process::Command`
+            // when targeting Windows — no need to import the std CommandExt
+            // trait, which would just trigger an unused-import warning.
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
