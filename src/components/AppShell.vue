@@ -2,7 +2,7 @@
   <a-layout class="app-shell">
     <a-layout-sider class="app-sider" width="260" :trigger="null">
       <div class="brand">
-        <div class="brand-mark">RH</div>
+        <img :src="iconUrl" alt="Rathole Launcher" class="brand-mark" />
         <div class="brand-meta">
           <div class="brand-title">Rathole</div>
           <div class="brand-subtitle">{{ t("sidebar.brandSubtitle") }}</div>
@@ -64,6 +64,7 @@ import CreateConfigModal from "@/components/CreateConfigModal.vue";
 import LanguagePicker from "@/components/LanguagePicker.vue";
 import { persistMode } from "@/router";
 import type { Mode } from "@/types/rathole";
+import iconUrl from "@/assets/app-icon.png";
 
 const router = useRouter();
 const route = useRoute();
@@ -142,14 +143,11 @@ function goSettings() {
 .brand-mark {
   width: 36px;
   height: 36px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .brand-title {

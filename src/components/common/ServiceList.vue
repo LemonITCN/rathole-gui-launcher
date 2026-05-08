@@ -20,7 +20,7 @@
               size="small"
               class="name-input"
               :status="duplicateNames.has(entry.name) ? 'error' : ''"
-              @update:value="(v) => renameEntry(entry.id, v)"
+              @update:value="(v: string) => renameEntry(entry.id, v)"
               :placeholder="t('services.namePlaceholder')"
             />
             <a-tag v-if="duplicateNames.has(entry.name)" color="red">
@@ -45,16 +45,16 @@
                   <a-select
                     :value="entry.value.type ?? 'tcp'"
                     :options="typeOptions"
-                    @update:value="(v) => updateField(entry.id, 'type', v === 'tcp' ? undefined : v)"
+                    @update:value="(v: string) => updateField(entry.id, 'type', v === 'tcp' ? undefined : v)"
                   />
                 </a-form-item>
               </a-col>
               <a-col :span="18">
                 <a-form-item :label="addrLabel" required>
                   <a-input
-                    :value="role === 'server' ? entry.value.bind_addr : entry.value.local_addr"
+                    :value="role === 'server' ? (entry.value as ServerService).bind_addr : (entry.value as ClientService).local_addr"
                     :placeholder="addrPlaceholder"
-                    @update:value="(v) => updateAddr(entry.id, v)"
+                    @update:value="(v: string) => updateAddr(entry.id, v)"
                   />
                 </a-form-item>
               </a-col>
@@ -68,7 +68,7 @@
                         :value="entry.value.token"
                         autocomplete="off"
                         allow-clear
-                        @update:value="(v) => updateField(entry.id, 'token', v || undefined)"
+                        @update:value="(v: string) => updateField(entry.id, 'token', v || undefined)"
                       />
                     </a-form-item>
                   </a-col>
@@ -79,7 +79,7 @@
                         :options="nodelayOptions"
                         allow-clear
                         :placeholder="t('services.nodelayPlaceholder')"
-                        @update:value="(v) => updateField(entry.id, 'nodelay', v)"
+                        @update:value="(v: boolean | undefined) => updateField(entry.id, 'nodelay', v)"
                       />
                     </a-form-item>
                   </a-col>
@@ -90,7 +90,7 @@
                         :min="1"
                         style="width: 100%"
                         :placeholder="t('services.retryPlaceholder')"
-                        @update:value="(v) => updateField(entry.id, 'retry_interval', v ?? undefined)"
+                        @update:value="(v: number | null | undefined) => updateField(entry.id, 'retry_interval', v ?? undefined)"
                       />
                     </a-form-item>
                   </a-col>

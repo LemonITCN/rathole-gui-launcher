@@ -13,7 +13,7 @@
             :value="tcp.proxy"
             :placeholder="t('transport.proxyPlaceholder')"
             allow-clear
-            @update:value="(v) => setTcp('proxy', v || undefined)"
+            @update:value="(v: string) => setTcp('proxy', v || undefined)"
           />
         </a-form-item>
       </a-col>
@@ -24,7 +24,7 @@
             :options="boolOptions"
             allow-clear
             :placeholder="t('services.nodelayPlaceholder')"
-            @update:value="(v) => setTcp('nodelay', v ?? undefined)"
+            @update:value="(v: boolean | undefined) => setTcp('nodelay', v ?? undefined)"
           />
         </a-form-item>
       </a-col>
@@ -35,7 +35,7 @@
             :min="1"
             placeholder="20"
             style="width: 100%"
-            @update:value="(v) => setTcp('keepalive_secs', v ?? undefined)"
+            @update:value="(v: number | null | undefined) => setTcp('keepalive_secs', v ?? undefined)"
           />
         </a-form-item>
       </a-col>
@@ -49,7 +49,7 @@
         :min="1"
         placeholder="8"
         style="width: 100%"
-        @update:value="(v) => setTcp('keepalive_interval', v ?? undefined)"
+        @update:value="(v: number | null | undefined) => setTcp('keepalive_interval', v ?? undefined)"
       />
     </a-form-item>
 
@@ -60,14 +60,14 @@
           <a-input
             :value="serverTls.pkcs12"
             :placeholder="t('transport.pkcs12PathPlaceholder')"
-            @update:value="(v) => setServerTls('pkcs12', v)"
+            @update:value="(v: string) => setServerTls('pkcs12', v)"
           />
         </a-form-item>
         <a-form-item :label="t('transport.pkcs12PasswordLabel')" required>
           <a-input-password
             :value="serverTls.pkcs12_password"
             autocomplete="off"
-            @update:value="(v) => setServerTls('pkcs12_password', v)"
+            @update:value="(v: string) => setServerTls('pkcs12_password', v)"
           />
         </a-form-item>
       </template>
@@ -76,7 +76,7 @@
           <a-input
             :value="clientTls.trusted_root"
             :placeholder="t('transport.trustedRootPlaceholder')"
-            @update:value="(v) => setClientTls('trusted_root', v)"
+            @update:value="(v: string) => setClientTls('trusted_root', v)"
           />
         </a-form-item>
         <a-form-item :label="t('transport.hostnameLabel')" :extra="t('transport.hostnameExtra')">
@@ -84,7 +84,7 @@
             :value="clientTls.hostname"
             :placeholder="t('transport.hostnamePlaceholder')"
             allow-clear
-            @update:value="(v) => setClientTls('hostname', v || undefined)"
+            @update:value="(v: string) => setClientTls('hostname', v || undefined)"
           />
         </a-form-item>
       </template>
@@ -97,7 +97,7 @@
           :value="noise.pattern"
           placeholder="Noise_NK_25519_ChaChaPoly_BLAKE2s"
           allow-clear
-          @update:value="(v) => setNoise('pattern', v || undefined)"
+          @update:value="(v: string) => setNoise('pattern', v || undefined)"
         />
       </a-form-item>
       <a-form-item :label="t('transport.privateKeyLabel')">
@@ -105,7 +105,7 @@
           :value="noise.local_private_key"
           allow-clear
           autocomplete="off"
-          @update:value="(v) => setNoise('local_private_key', v || undefined)"
+          @update:value="(v: string) => setNoise('local_private_key', v || undefined)"
         />
       </a-form-item>
       <a-form-item
@@ -120,7 +120,7 @@
           :value="noise.remote_public_key"
           allow-clear
           autocomplete="off"
-          @update:value="(v) => setNoise('remote_public_key', v || undefined)"
+          @update:value="(v: string) => setNoise('remote_public_key', v || undefined)"
         />
       </a-form-item>
     </template>
@@ -128,7 +128,7 @@
     <template v-if="kind === 'websocket'">
       <a-divider class="divider">{{ t("transport.websocketOptions") }}</a-divider>
       <a-form-item>
-        <a-checkbox :checked="wsTls" @change="(e) => setWsTls(!!e.target.checked)">
+        <a-checkbox :checked="wsTls" @change="(e: any) => setWsTls(!!e.target.checked)">
           {{ t("transport.websocketTls") }}
         </a-checkbox>
         <p class="rl-muted hint">{{ t("transport.websocketTlsHint") }}</p>

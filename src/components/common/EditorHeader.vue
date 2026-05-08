@@ -162,7 +162,20 @@ const hasSubRow = computed(
 
 function pick(action: MenuAction) {
   menuOpen.value = false;
-  emit(action);
+  switch (action) {
+    case "duplicate":
+      emit("duplicate");
+      break;
+    case "rename":
+      emit("rename");
+      break;
+    case "open-dir":
+      emit("open-dir");
+      break;
+    case "delete":
+      emit("delete");
+      break;
+  }
 }
 </script>
 

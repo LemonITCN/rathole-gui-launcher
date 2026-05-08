@@ -7,7 +7,7 @@
     :confirm-loading="loading"
     @ok="handleOk"
     @cancel="emit('update:open', false)"
-    @update:open="(v) => emit('update:open', v)"
+    @update:open="(v: boolean) => emit('update:open', v)"
   >
     <a-form layout="vertical">
       <a-form-item

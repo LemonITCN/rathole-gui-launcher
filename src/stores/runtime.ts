@@ -61,7 +61,7 @@ export const useRuntimeStore = defineStore("runtime", () => {
 
   async function bind() {
     const offLog = await onRatholeLog((line) => appendLog(line));
-    const offStatus = await onRatholeStatus(async (event) => {
+    const offStatus = await onRatholeStatus(async () => {
       await refreshAll();
     });
     unsubscribers = [offLog, offStatus];

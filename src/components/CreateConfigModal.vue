@@ -10,7 +10,7 @@
     :width="entryMode === 'toml' ? 640 : 520"
     @ok="handleOk"
     @cancel="handleCancel"
-    @update:open="(v) => $emit('update:open', v)"
+    @update:open="(v: boolean) => emit('update:open', v)"
   >
     <div v-if="mode === 'client'" class="entry-tabs">
       <a-segmented v-model:value="entryMode" :options="entryOptions" block />

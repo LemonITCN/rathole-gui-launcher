@@ -38,7 +38,6 @@ import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { message } from "antdv-next";
 import {
-  CheckCircleFilled,
   CloudDownloadOutlined,
   DisconnectOutlined,
   ExclamationCircleFilled,
