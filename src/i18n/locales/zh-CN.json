@@ -253,7 +253,9 @@
     "unreachableTitle": "无法访问 GitHub",
     "unreachableDetail": "已使用本地的 rathole 二进制；要检查或下载新版本请确认网络可访问 github.com。",
     "retryCheck": "重新检查",
-    "unknown": "未知"
+    "unknown": "未知",
+    "binaryBlockedTitle": "rathole 文件在但无法运行",
+    "binaryBlockedDetail": "rathole 二进制存在于 {path}，但调用 --version 失败。多半是 Windows Smart App Control / Defender 把这个未签名的第三方 exe 当成「可疑」拦了。请到「Windows 安全中心 → 病毒和威胁防护 → 管理设置 → 排除项」中把 rathole.exe 加入白名单，或在「应用与浏览器控制 → 智能应用控制」中关闭 SmartScreen 后重试。"
   },
   "language": {
     "zh-CN": "简体中文",

@@ -253,7 +253,9 @@
     "unreachableTitle": "GitHub에 접속할 수 없음",
     "unreachableDetail": "로컬 rathole 바이너리를 사용 중입니다. 새 버전을 확인하려면 github.com에 접속할 수 있어야 합니다.",
     "retryCheck": "다시 시도",
-    "unknown": "알 수 없음"
+    "unknown": "알 수 없음",
+    "binaryBlockedTitle": "rathole 파일은 있지만 실행할 수 없습니다",
+    "binaryBlockedDetail": "rathole 바이너리는 {path}에 있지만 `--version` 호출이 차단되었습니다. Windows에서는 보통 Smart App Control / Defender / AppLocker가 서명되지 않은 타사 실행 파일을 차단한 경우입니다. Windows 보안 → 바이러스 및 위협 방지 → 설정 관리 → 제외 항목에 rathole.exe 경로를 추가하거나, 앱 및 브라우저 제어에서 Smart App Control을 끈 뒤 다시 시도하세요."
   },
   "language": {
     "zh-CN": "简体中文",

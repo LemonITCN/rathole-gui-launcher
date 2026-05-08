@@ -253,7 +253,9 @@
     "unreachableTitle": "GitHub is unreachable",
     "unreachableDetail": "Using the local rathole binary. To check or download new versions, ensure github.com is reachable from your network.",
     "retryCheck": "Retry",
-    "unknown": "unknown"
+    "unknown": "unknown",
+    "binaryBlockedTitle": "rathole is present but cannot be executed",
+    "binaryBlockedDetail": "The rathole binary exists at {path}, but `--version` was rejected. On Windows this usually means Smart App Control / Defender / AppLocker blocked the unsigned third-party executable. Add the rathole.exe path to your antivirus exclusions (Windows Security → Virus & threat protection → Manage settings → Exclusions), or turn off Smart App Control under App & browser control, then retry."
   },
   "language": {
     "zh-CN": "简体中文",

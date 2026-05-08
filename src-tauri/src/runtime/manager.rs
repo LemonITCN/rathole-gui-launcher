@@ -162,7 +162,9 @@ impl ProcessManager {
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
-        let mut child = cmd.spawn().map_err(|e| AppError::Spawn(e.to_string()))?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| AppError::Spawn(friendly_spawn_error(&e)))?;
         let pid = child
             .id()
             .ok_or_else(|| AppError::Spawn("child has no pid".into()))?;
@@ -487,6 +489,31 @@ async fn graceful_kill(child: &mut tokio::process::Child, pid: u32) {
 async fn graceful_kill(child: &mut tokio::process::Child, _pid: u32) {
     let _ = child.kill().await;
     let _ = tokio::time::timeout(Duration::from_secs(STOP_GRACE_SECS), child.wait()).await;
+}
+
+/// Translate platform-specific spawn errors into actionable messages. The
+/// most common case we want to catch is Windows Smart App Control /
+/// Defender blocking an unsigned third-party binary — the raw error
+/// ("os error 4556") gives a confused user nothing to act on.
+fn friendly_spawn_error(e: &std::io::Error) -> String {
+    let raw = e.to_string();
+    #[cfg(windows)]
+    {
+        let code = e.raw_os_error().unwrap_or(0);
+        // 4556 = Windows App Control / Smart App Control reputation block.
+        // 225  = ERROR_VIRUS_INFECTED, used by Defender real-time scan.
+        if matches!(code, 4556 | 225) || raw.contains("应用程序控制") {
+            return format!(
+                "Windows blocked rathole.exe via Smart App Control / Defender / AppLocker. \
+                 The binary is unsigned third-party software, so the OS treats it as \
+                 untrusted. Workaround: open Windows Security → Virus & threat protection \
+                 → Manage settings → Add or remove exclusions, and add the rathole.exe \
+                 path; or turn Smart App Control off under App & browser control. \
+                 Underlying error: {raw}"
+            );
+        }
+    }
+    raw
 }
 
 /// Send SIGTERM (or platform equivalent) by PID, wait up to STOP_GRACE_SECS

@@ -109,7 +109,7 @@ jobs:
             | Linux (x64) | `*_amd64.deb`, `*_amd64.AppImage`, `*.rpm` |
 
             After installing, drop the matching `rathole` (or `rathole.exe`) binary into the launcher's working directory. The launcher will pick it up automatically; you can also override the path under **Settings**.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           includeUpdaterJson: false
           args: ${{ matrix.args }}

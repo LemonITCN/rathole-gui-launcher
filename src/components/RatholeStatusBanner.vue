@@ -117,6 +117,39 @@ const banner = computed(() => {
   const installed = result.installed_version;
   const latest = result.latest_version;
 
+  // 0) Binary file is on disk but `--version` failed. On Windows this
+  // typically means Smart App Control / Defender / AppLocker blocked the
+  // unsigned executable. Re-downloading would just hit the same block,
+  // so we surface a dedicated banner with actionable advice instead of
+  // looping the update offer.
+  if (result.binary_present && !installed) {
+    return {
+      tone: "warning" as Tone,
+      icon: ExclamationCircleFilled,
+      title: t("updater.binaryBlockedTitle"),
+      detail: t("updater.binaryBlockedDetail", {
+        path: appStore.info?.rathole_path ?? "",
+      }),
+      actions: [
+        {
+          key: "retry",
+          label: t("updater.retryCheck"),
+          handler: () => updaterStore.check(),
+          loading: updaterStore.checking,
+        } as ActionDef,
+        ...(onSettingsPage.value
+          ? []
+          : [
+              {
+                key: "settings",
+                label: t("sidebar.settings"),
+                handler: () => router.push({ name: "settings" }),
+              } as ActionDef,
+            ]),
+      ],
+    };
+  }
+
   // 1) Binary missing
   if (!result.binary_present) {
     if (!result.github_reachable) {

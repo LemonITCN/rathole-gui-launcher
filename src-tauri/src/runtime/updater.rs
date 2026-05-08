@@ -256,9 +256,15 @@ pub async fn check_update(rathole_path: PathBuf) -> UpdateCheckResult {
     let latest_version = release.tag_name.trim_start_matches('v').to_string();
     let asset = pick_asset(&release);
 
+    // Treat "binary file present but `--version` failed" as a separate
+    // state from "no binary at all". The former usually means the OS
+    // (Windows Smart App Control / Defender / AppLocker) is blocking
+    // the executable; offering another download would just re-trigger
+    // the same block in a loop. The frontend renders a dedicated
+    // banner for that case instead of the update offer.
     let update_available = match (&installed, &asset) {
         (Some(inst), Some(_)) => inst != &latest_version,
-        (None, Some(_)) => true,
+        (None, Some(_)) if !binary_present => true,
         _ => false,
     };
 

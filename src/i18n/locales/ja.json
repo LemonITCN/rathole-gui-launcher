@@ -253,7 +253,9 @@
     "unreachableTitle": "GitHub に接続できません",
     "unreachableDetail": "ローカルの rathole バイナリを使用しています。新しいバージョンを確認するには github.com にアクセスできる必要があります。",
     "retryCheck": "再試行",
-    "unknown": "不明"
+    "unknown": "不明",
+    "binaryBlockedTitle": "rathole は存在しますが実行できません",
+    "binaryBlockedDetail": "rathole バイナリは {path} にありますが、`--version` の実行が拒否されました。Windows では通常、Smart App Control / Defender / AppLocker が未署名のサードパーティ製実行ファイルをブロックしています。Windows セキュリティ → ウイルスと脅威の防止 → 設定の管理 → 除外で rathole.exe を追加するか、アプリとブラウザーコントロールで Smart App Control をオフにしてから再試行してください。"
   },
   "language": {
     "zh-CN": "简体中文",
