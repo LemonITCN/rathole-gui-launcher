@@ -19,6 +19,7 @@ const STOP_GRACE_SECS: u64 = 5;
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[allow(dead_code)] // Starting is reserved for future use; the frontend already handles it.
 pub enum InstanceState {
     Starting,
     Running,
@@ -232,7 +233,11 @@ impl ProcessManager {
                 &supervisor_buf,
             );
             emit_status(&manager.app, mode, &supervisor_name, InstanceState::Exited, exit_code);
+            crate::tray::rebuild_menu(&manager.app);
+            crate::store::runtime_state::remove(mode.as_str(), &supervisor_name);
         });
+
+        crate::store::runtime_state::add(mode.as_str(), &name, pid, started_at);
 
         push_log(
             &self.app,
@@ -243,6 +248,146 @@ impl ProcessManager {
             &log_buffer,
         );
         emit_status(&self.app, mode, &name, InstanceState::Running, None);
+        crate::tray::rebuild_menu(&self.app);
+
+        Ok(self.status(mode, &name).unwrap_or(RunStatus {
+            mode: mode.as_str().to_string(),
+            name,
+            pid: Some(pid),
+            state: InstanceState::Running,
+            started_at: Some(started_at.to_rfc3339()),
+            last_exit_code: None,
+        }))
+    }
+
+    /// Re-attach to a rathole process that was started by a previous launcher
+    /// run and is still alive. We don't have its stdout/stderr pipes (those
+    /// died with the previous launcher), so the log stream stays empty. We
+    /// can still report status, send a stop signal, and detect when the
+    /// process eventually exits via PID polling.
+    pub async fn adopt(
+        self: Arc<Self>,
+        mode: Mode,
+        name: String,
+        pid: u32,
+        started_at: chrono::DateTime<chrono::Utc>,
+    ) -> AppResult<RunStatus> {
+        let key = Self::key(mode, &name);
+        {
+            let lock = self.instances.lock();
+            if lock.contains_key(&key) {
+                return Err(AppError::AlreadyRunning);
+            }
+        }
+
+        if !is_rathole_process(pid) {
+            return Err(AppError::NotRunning);
+        }
+
+        let log_buffer = Arc::new(Mutex::new(VecDeque::with_capacity(LOG_BUFFER_CAP)));
+        let (stop_tx, mut stop_rx) = mpsc::channel::<()>(1);
+
+        {
+            let mut lock = self.instances.lock();
+            lock.insert(
+                key.clone(),
+                Instance {
+                    mode,
+                    name: name.clone(),
+                    pid,
+                    started_at,
+                    state: InstanceState::Running,
+                    last_exit_code: None,
+                    stop_tx,
+                    log_buffer: log_buffer.clone(),
+                },
+            );
+        }
+
+        push_log(
+            &self.app,
+            mode.as_str(),
+            &name,
+            "system",
+            format!(
+                "adopted rathole pid={pid} from a previous launcher session"
+            ),
+            &log_buffer,
+        );
+        push_log(
+            &self.app,
+            mode.as_str(),
+            &name,
+            "system",
+            "live log stream is unavailable for adopted instances; stop and start again to reattach"
+                .to_string(),
+            &log_buffer,
+        );
+
+        let manager = self.clone();
+        let supervisor_mode = mode;
+        let supervisor_name = name.clone();
+        let supervisor_key = key.clone();
+        let supervisor_buf = log_buffer.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    biased;
+                    _ = stop_rx.recv() => {
+                        manager.set_state(&supervisor_key, InstanceState::Stopping);
+                        emit_status(
+                            &manager.app,
+                            supervisor_mode,
+                            &supervisor_name,
+                            InstanceState::Stopping,
+                            None,
+                        );
+                        push_log(
+                            &manager.app,
+                            supervisor_mode.as_str(),
+                            &supervisor_name,
+                            "system",
+                            "stop signal received".to_string(),
+                            &supervisor_buf,
+                        );
+                        kill_pid_graceful(pid).await;
+                        break;
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(2)) => {
+                        if !is_pid_alive(pid) {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            {
+                let mut lock = manager.instances.lock();
+                if let Some(inst) = lock.get_mut(&supervisor_key) {
+                    inst.state = InstanceState::Exited;
+                }
+            }
+            push_log(
+                &manager.app,
+                supervisor_mode.as_str(),
+                &supervisor_name,
+                "system",
+                "rathole process is no longer running".to_string(),
+                &supervisor_buf,
+            );
+            emit_status(
+                &manager.app,
+                supervisor_mode,
+                &supervisor_name,
+                InstanceState::Exited,
+                None,
+            );
+            crate::tray::rebuild_menu(&manager.app);
+            crate::store::runtime_state::remove(supervisor_mode.as_str(), &supervisor_name);
+        });
+
+        emit_status(&self.app, mode, &name, InstanceState::Running, None);
+        crate::tray::rebuild_menu(&self.app);
 
         Ok(self.status(mode, &name).unwrap_or(RunStatus {
             mode: mode.as_str().to_string(),
@@ -342,6 +487,84 @@ async fn graceful_kill(child: &mut tokio::process::Child, _pid: u32) {
     let _ = tokio::time::timeout(Duration::from_secs(STOP_GRACE_SECS), child.wait()).await;
 }
 
+/// Send SIGTERM (or platform equivalent) by PID, wait up to STOP_GRACE_SECS
+/// for the process to exit, then SIGKILL if still alive. Used for adopted
+/// processes where we no longer hold a `tokio::process::Child` handle.
+async fn kill_pid_graceful(pid: u32) {
+    #[cfg(unix)]
+    {
+        use nix::sys::signal::{kill, Signal};
+        use nix::unistd::Pid;
+        let _ = kill(Pid::from_raw(pid as i32), Signal::SIGTERM);
+    }
+    #[cfg(windows)]
+    {
+        kill_pid_force(pid);
+    }
+
+    let started = std::time::Instant::now();
+    while started.elapsed() < Duration::from_secs(STOP_GRACE_SECS) {
+        if !is_pid_alive(pid) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+
+    #[cfg(unix)]
+    {
+        use nix::sys::signal::{kill, Signal};
+        use nix::unistd::Pid;
+        let _ = kill(Pid::from_raw(pid as i32), Signal::SIGKILL);
+    }
+    #[cfg(windows)]
+    {
+        kill_pid_force(pid);
+    }
+}
+
+#[cfg(windows)]
+fn kill_pid_force(pid: u32) {
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[Pid::from_u32(pid)]),
+        true,
+        ProcessRefreshKind::new(),
+    );
+    if let Some(proc) = sys.process(Pid::from_u32(pid)) {
+        let _ = proc.kill();
+    }
+}
+
+pub fn is_pid_alive(pid: u32) -> bool {
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[Pid::from_u32(pid)]),
+        true,
+        ProcessRefreshKind::new(),
+    );
+    sys.process(Pid::from_u32(pid)).is_some()
+}
+
+/// Returns true if the given PID is alive AND its process name contains
+/// "rathole". This guards against adopting an unrelated process when the
+/// kernel happens to reuse the PID after a previous rathole exit.
+pub fn is_rathole_process(pid: u32) -> bool {
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[Pid::from_u32(pid)]),
+        true,
+        ProcessRefreshKind::new().with_cmd(UpdateKind::OnlyIfNotSet),
+    );
+    if let Some(proc) = sys.process(Pid::from_u32(pid)) {
+        proc.name().to_string_lossy().to_lowercase().contains("rathole")
+    } else {
+        false
+    }
+}
+
 fn push_log(
     app: &AppHandle,
     mode: &str,
@@ -367,7 +590,7 @@ fn push_log(
     let _ = app.emit("rathole-log", entry);
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct StatusEvent<'a> {
     mode: &'a str,
     name: &'a str,

@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { message } from "ant-design-vue";
+import { message } from "antdv-next";
 import SectionCard from "@/components/common/SectionCard.vue";
 import { useRuntimeStore } from "@/stores/runtime";
 import type { Mode } from "@/types/rathole";

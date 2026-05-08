@@ -10,6 +10,7 @@ import type {
   RunStatus,
   ServerConfig,
   Settings,
+  UpdateCheckResult,
 } from "@/types/rathole";
 
 export const api = {
@@ -67,4 +68,13 @@ export const api = {
 
   openConfDir: (mode: Mode) =>
     invoke<string>("open_conf_dir", { mode }),
+
+  parseServerToml: (content: string) =>
+    invoke<ServerConfig>("parse_server_toml", { content }),
+
+  checkRatholeUpdate: () =>
+    invoke<UpdateCheckResult>("check_rathole_update"),
+
+  downloadRatholeRelease: (url: string) =>
+    invoke<string>("download_rathole_release", { url }),
 };

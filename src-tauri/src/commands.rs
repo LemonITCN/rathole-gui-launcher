@@ -3,14 +3,14 @@ use std::process::Stdio;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 use tokio::process::Command;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{ClientConfig, ServerConfig};
 use crate::paths::{self, app_data_dir, client_conf_dir, config_file, server_conf_dir, Mode};
 use crate::runtime::{
-    self, ExternalRathole, LogLine, PortStatus, ProcessManager, RunStatus,
+    self, ExternalRathole, LogLine, PortStatus, ProcessManager, RunStatus, UpdateCheckResult,
 };
 use crate::store::{self, Settings, SettingsHandle};
 
@@ -58,17 +58,22 @@ async fn detect_version(path: &std::path::Path) -> Option<String> {
         .output()
         .await
         .ok()?;
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if stdout.is_empty() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        if stderr.is_empty() {
-            None
-        } else {
-            Some(stderr)
-        }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = if stdout.trim().is_empty() {
+        stderr.trim().to_string()
     } else {
-        Some(stdout)
+        stdout.trim().to_string()
+    };
+    if combined.is_empty() {
+        return None;
     }
+    // Rathole's `--version` includes a build timestamp, build version and
+    // git-describe / commit SHA. Pick out just the semver so the UI can
+    // show a compact "0.5.0" instead of the full multi-field string.
+    combined
+        .split_whitespace()
+        .find_map(runtime::updater::extract_semver)
 }
 
 #[derive(Deserialize)]
@@ -80,21 +85,32 @@ pub struct UpdateSettings {
 
 #[tauri::command]
 pub async fn update_settings(
+    app: AppHandle,
     settings: State<'_, SettingsHandle>,
     payload: UpdateSettings,
 ) -> AppResult<Settings> {
-    let mut s = settings.write();
-    if let Some(p) = payload.rathole_path {
-        s.rathole_path = if p.is_empty() { None } else { Some(p) };
+    let (snapshot, language_changed) = {
+        let mut s = settings.write();
+        let prev_lang = s.language.clone();
+        if let Some(p) = payload.rathole_path {
+            s.rathole_path = if p.is_empty() { None } else { Some(p) };
+        }
+        if let Some(a) = payload.auto_resume {
+            s.auto_resume = a;
+        }
+        if let Some(lang) = payload.language {
+            s.language = if lang.is_empty() { None } else { Some(lang) };
+        }
+        let changed = prev_lang != s.language;
+        s.save()?;
+        (s.clone(), changed)
+    };
+
+    if language_changed {
+        crate::tray::rebuild_menu(&app);
     }
-    if let Some(a) = payload.auto_resume {
-        s.auto_resume = a;
-    }
-    if let Some(lang) = payload.language {
-        s.language = if lang.is_empty() { None } else { Some(lang) };
-    }
-    s.save()?;
-    Ok(s.clone())
+
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -114,47 +130,63 @@ pub async fn get_client_config(name: String) -> AppResult<ClientConfig> {
 }
 
 #[tauri::command]
-pub async fn save_server_config(name: String, config: ServerConfig) -> AppResult<()> {
-    store::save_server(&name, &config)
+pub async fn save_server_config(app: AppHandle, name: String, config: ServerConfig) -> AppResult<()> {
+    store::save_server(&name, &config)?;
+    crate::tray::rebuild_menu(&app);
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn save_client_config(name: String, config: ClientConfig) -> AppResult<()> {
-    store::save_client(&name, &config)
+pub async fn save_client_config(app: AppHandle, name: String, config: ClientConfig) -> AppResult<()> {
+    store::save_client(&name, &config)?;
+    crate::tray::rebuild_menu(&app);
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn delete_config(mode: String, name: String) -> AppResult<()> {
+pub async fn delete_config(app: AppHandle, mode: String, name: String) -> AppResult<()> {
     let m = Mode::from_str(&mode)?;
-    store::delete_config(m, &name)
+    store::delete_config(m, &name)?;
+    crate::tray::rebuild_menu(&app);
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn rename_config(mode: String, old_name: String, new_name: String) -> AppResult<()> {
-    let m = Mode::from_str(&mode)?;
-    store::rename_config(m, &old_name, &new_name)
-}
-
-#[tauri::command]
-pub async fn start_config(
-    manager: State<'_, Arc<ProcessManager>>,
-    settings: State<'_, SettingsHandle>,
+pub async fn rename_config(
+    app: AppHandle,
     mode: String,
+    old_name: String,
+    new_name: String,
+) -> AppResult<()> {
+    let m = Mode::from_str(&mode)?;
+    store::rename_config(m, &old_name, &new_name)?;
+    crate::tray::rebuild_menu(&app);
+    Ok(())
+}
+
+/// Reusable start path. `commands::start_config` and the system-tray menu
+/// both go through this so port-conflict detection and binary resolution
+/// happen consistently regardless of the entry point.
+pub async fn start_config_internal(
+    app: &AppHandle,
+    mode: Mode,
     name: String,
 ) -> AppResult<RunStatus> {
-    let m = Mode::from_str(&mode)?;
-    let config_path: PathBuf = config_file(m, &name)?;
-
+    let config_path: PathBuf = config_file(mode, &name)?;
     if !config_path.exists() {
         return Err(AppError::NotFound(name));
     }
 
-    let rathole_path = settings.read().resolved_rathole_path();
+    let rathole_path = app
+        .try_state::<SettingsHandle>()
+        .ok_or_else(|| AppError::Other("settings not initialized".into()))?
+        .read()
+        .resolved_rathole_path();
     if !rathole_path.exists() {
         return Err(AppError::BinaryMissing(rathole_path.display().to_string()));
     }
 
-    let required_ports = collect_ports_for(m, &name)?;
+    let required_ports = collect_ports_for(mode, &name)?;
     let conflicts: Vec<PortStatus> = runtime::scan_ports(required_ports)
         .await
         .into_iter()
@@ -169,18 +201,43 @@ pub async fn start_config(
         return Err(AppError::PortInUse { addr: summary });
     }
 
-    let mgr = manager.inner().clone();
-    mgr.start(m, name, config_path, rathole_path).await
+    let mgr = app
+        .try_state::<Arc<ProcessManager>>()
+        .ok_or_else(|| AppError::Other("manager not initialized".into()))?
+        .inner()
+        .clone();
+    mgr.start(mode, name, config_path, rathole_path).await
+}
+
+pub async fn stop_config_internal(
+    app: &AppHandle,
+    mode: Mode,
+    name: &str,
+) -> AppResult<()> {
+    let mgr = app
+        .try_state::<Arc<ProcessManager>>()
+        .ok_or_else(|| AppError::Other("manager not initialized".into()))?;
+    mgr.stop(mode, name).await
+}
+
+#[tauri::command]
+pub async fn start_config(
+    app: AppHandle,
+    mode: String,
+    name: String,
+) -> AppResult<RunStatus> {
+    let m = Mode::from_str(&mode)?;
+    start_config_internal(&app, m, name).await
 }
 
 #[tauri::command]
 pub async fn stop_config(
-    manager: State<'_, Arc<ProcessManager>>,
+    app: AppHandle,
     mode: String,
     name: String,
 ) -> AppResult<()> {
     let m = Mode::from_str(&mode)?;
-    manager.stop(m, &name).await
+    stop_config_internal(&app, m, &name).await
 }
 
 #[tauri::command]
@@ -245,7 +302,38 @@ pub async fn open_conf_dir(mode: String) -> AppResult<String> {
 }
 
 #[tauri::command]
+pub async fn parse_server_toml(content: String) -> AppResult<ServerConfig> {
+    let cfg: ServerConfig = toml::from_str(&content)?;
+    if cfg.server.bind_addr.is_empty() {
+        return Err(AppError::Other(
+            "missing [server] section or bind_addr".into(),
+        ));
+    }
+    Ok(cfg)
+}
+
+#[tauri::command]
+pub async fn check_rathole_update(
+    settings: State<'_, SettingsHandle>,
+) -> AppResult<UpdateCheckResult> {
+    let path = settings.read().resolved_rathole_path();
+    Ok(runtime::check_update(path).await)
+}
+
+#[tauri::command]
+pub async fn download_rathole_release(
+    app: AppHandle,
+    settings: State<'_, SettingsHandle>,
+    url: String,
+) -> AppResult<String> {
+    let dest = settings.read().resolved_rathole_path();
+    runtime::download_and_install(&app, &url, &dest).await?;
+    Ok(dest.display().to_string())
+}
+
+#[tauri::command]
 pub async fn duplicate_config(
+    app: AppHandle,
     mode: String,
     source: String,
     target: String,
@@ -260,6 +348,7 @@ pub async fn duplicate_config(
         return Err(AppError::AlreadyExists(target));
     }
     std::fs::copy(from, to)?;
+    crate::tray::rebuild_menu(&app);
     Ok(())
 }
 

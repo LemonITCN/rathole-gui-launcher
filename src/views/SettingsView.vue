@@ -9,6 +9,8 @@
       </i18n-t>
     </p>
 
+    <RatholeStatusBanner />
+
     <SectionCard :title="t('settings.languageSection')" :hint="t('settings.languageHint')">
       <a-radio-group :value="current" button-style="solid" @change="onLanguageChange">
         <a-radio-button v-for="code in supported" :key="code" :value="code">
@@ -20,17 +22,15 @@
     <SectionCard :title="t('settings.binarySection')" :hint="t('settings.binaryHint')">
       <a-form layout="vertical">
         <a-form-item :label="t('settings.pathLabel')">
-          <a-input-group compact>
+          <div class="path-row">
             <a-input
               v-model:value="customPath"
               :placeholder="info?.rathole_path"
-              style="width: calc(100% - 120px)"
               allow-clear
+              class="path-input"
             />
-            <a-button @click="pickFile" style="width: 120px">
-              {{ t("common.browse") }}
-            </a-button>
-          </a-input-group>
+            <a-button @click="pickFile">{{ t("common.browse") }}</a-button>
+          </div>
         </a-form-item>
         <div class="status-row">
           <template v-if="info?.rathole_exists">
@@ -78,7 +78,9 @@
       <template #actions>
         <a-button size="small" @click="scan">{{ t("common.refresh") }}</a-button>
       </template>
-      <a-empty v-if="!externals.length" :description="t('settings.externalsEmpty')" />
+      <div v-if="!externals.length" class="empty-list rl-muted">
+        {{ t("settings.externalsEmpty") }}
+      </div>
       <a-list v-else :data-source="externals" item-layout="horizontal">
         <template #renderItem="{ item }">
           <a-list-item>
@@ -107,9 +109,10 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { CheckCircleFilled, ExclamationCircleFilled } from "@ant-design/icons-vue";
-import { message } from "ant-design-vue";
+import { CheckCircleFilled, ExclamationCircleFilled } from "@antdv-next/icons";
+import { message } from "antdv-next";
 import SectionCard from "@/components/common/SectionCard.vue";
+import RatholeStatusBanner from "@/components/RatholeStatusBanner.vue";
 import { api } from "@/api/tauri";
 import { useAppStore } from "@/stores/app";
 import { useLanguage } from "@/composables/useLanguage";
@@ -199,6 +202,22 @@ async function onLanguageChange(event: any) {
   line-height: 1.6;
 }
 
+.path-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.path-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.path-row :deep(.ant-input-affix-wrapper),
+.path-row :deep(.ant-input) {
+  width: 100%;
+}
+
 .status-row {
   display: flex;
   align-items: center;
@@ -206,10 +225,32 @@ async function onLanguageChange(event: any) {
   font-size: 13px;
   margin-bottom: 12px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+.status-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.status-row :deep(.ant-tag) {
+  white-space: normal;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.status-row code.rl-mono {
+  overflow-wrap: anywhere;
 }
 
 .actions {
   display: flex;
   gap: 8px;
+}
+
+.empty-list {
+  text-align: center;
+  padding: 28px 0;
+  font-size: 13px;
 }
 </style>

@@ -1,7 +1,19 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router";
 
+const MODE_STORAGE_KEY = "rathole-launcher.mode";
+
+function readSavedMode(): "server" | "client" {
+  try {
+    const saved = window.localStorage.getItem(MODE_STORAGE_KEY);
+    if (saved === "server" || saved === "client") return saved;
+  } catch {
+    // localStorage may be unavailable
+  }
+  return "server";
+}
+
 const routes: RouteRecordRaw[] = [
-  { path: "/", redirect: "/server" },
+  { path: "/", redirect: () => `/${readSavedMode()}` },
   {
     path: "/server",
     name: "server",
@@ -37,3 +49,11 @@ export const router = createRouter({
   history: createWebHashHistory(),
   routes,
 });
+
+export function persistMode(mode: "server" | "client") {
+  try {
+    window.localStorage.setItem(MODE_STORAGE_KEY, mode);
+  } catch {
+    // ignore
+  }
+}

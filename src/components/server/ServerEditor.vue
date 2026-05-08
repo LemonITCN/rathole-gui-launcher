@@ -10,6 +10,8 @@
         :saving="saving"
         :starting="starting"
         :stopping="stopping"
+        :needs-restart="needsRestart"
+        :restarting="restarting"
         @save="save"
         @start="start"
         @stop="stop"
@@ -17,6 +19,8 @@
         @duplicate="duplicateOpen = true"
         @delete="onDelete"
         @open-dir="openDir"
+        @restart="restart"
+        @dismiss-restart="needsRestart = false"
       />
 
       <SectionCard :title="t('editor.basicTitle')" :hint="t('editor.basicHintServer')">
@@ -90,6 +94,18 @@
         :ok-text="t('common.create')"
         :submit="handleDuplicate"
       />
+
+      <a-modal
+        v-model:open="deleteOpen"
+        :title="t('editor.deleteConfirmTitle', { name: props.name })"
+        :ok-text="t('common.delete')"
+        ok-type="danger"
+        :cancel-text="t('common.cancel')"
+        :confirm-loading="deleting"
+        @ok="performDelete"
+      >
+        <p>{{ t("editor.deleteConfirmContent") }}</p>
+      </a-modal>
     </template>
   </div>
 </template>
@@ -97,7 +113,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { Modal, message } from "ant-design-vue";
+import { message } from "antdv-next";
 import { useRouter } from "vue-router";
 import EditorHeader from "@/components/common/EditorHeader.vue";
 import SectionCard from "@/components/common/SectionCard.vue";
@@ -126,6 +142,10 @@ const stopping = ref(false);
 
 const renameOpen = ref(false);
 const duplicateOpen = ref(false);
+const deleteOpen = ref(false);
+const deleting = ref(false);
+const needsRestart = ref(false);
+const restarting = ref(false);
 
 const status = computed(() => runtimeStore.statusOf("server", props.name));
 
@@ -173,6 +193,10 @@ async function save() {
     original.value = JSON.stringify(config.value);
     await configStore.refresh("server");
     message.success(t("common.saved"));
+    const state = status.value?.state;
+    if (state === "running" || state === "starting") {
+      needsRestart.value = true;
+    }
   } catch (err: any) {
     message.error(typeof err === "string" ? err : err?.message ?? t("editor.saveFailed"));
   } finally {
@@ -203,6 +227,44 @@ async function stop() {
   }
 }
 
+async function waitForExit(timeoutMs = 6000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const s = runtimeStore.statusOf("server", props.name);
+    if (!s || s.state === "exited") return;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+async function restart() {
+  restarting.value = true;
+  stopping.value = true;
+  try {
+    await runtimeStore.stop("server", props.name);
+    await waitForExit();
+    stopping.value = false;
+    starting.value = true;
+    await runtimeStore.start("server", props.name);
+    needsRestart.value = false;
+    message.success(t("editor.restartedOk"));
+  } catch (err: any) {
+    message.error(typeof err === "string" ? err : err?.message ?? t("editor.restartFailed"));
+  } finally {
+    restarting.value = false;
+    stopping.value = false;
+    starting.value = false;
+  }
+}
+
+watch(
+  () => status.value?.state,
+  (state) => {
+    if (!state || state === "exited") {
+      needsRestart.value = false;
+    }
+  },
+);
+
 async function handleRename(next: string) {
   if (next === props.name) return;
   await configStore.rename("server", props.name, next);
@@ -215,21 +277,20 @@ async function handleDuplicate(next: string) {
 }
 
 function onDelete() {
-  Modal.confirm({
-    title: t("editor.deleteConfirmTitle", { name: props.name }),
-    content: t("editor.deleteConfirmContent"),
-    okText: t("common.delete"),
-    okType: "danger",
-    cancelText: t("common.cancel"),
-    async onOk() {
-      try {
-        await configStore.remove("server", props.name);
-        router.replace({ name: "server" });
-      } catch (err: any) {
-        message.error(typeof err === "string" ? err : err?.message ?? t("editor.deleteFailed"));
-      }
-    },
-  });
+  deleteOpen.value = true;
+}
+
+async function performDelete() {
+  deleting.value = true;
+  try {
+    await configStore.remove("server", props.name);
+    deleteOpen.value = false;
+    router.replace({ name: "server" });
+  } catch (err: any) {
+    message.error(typeof err === "string" ? err : err?.message ?? t("editor.deleteFailed"));
+  } finally {
+    deleting.value = false;
+  }
 }
 
 async function openDir() {
@@ -247,6 +308,7 @@ async function openDir() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 0 28px 32px;
 }
 
 .advanced :deep(.ant-collapse-content-box) {

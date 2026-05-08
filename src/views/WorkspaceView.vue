@@ -1,5 +1,6 @@
 <template>
   <div class="workspace">
+    <RatholeStatusBanner class="banner-spacing" />
     <template v-if="!props.name">
       <WorkspaceWelcome :mode="props.mode" />
     </template>
@@ -16,6 +17,7 @@
 import WorkspaceWelcome from "@/components/WorkspaceWelcome.vue";
 import ServerEditor from "@/components/server/ServerEditor.vue";
 import ClientEditor from "@/components/client/ClientEditor.vue";
+import RatholeStatusBanner from "@/components/RatholeStatusBanner.vue";
 import type { Mode } from "@/types/rathole";
 
 const props = defineProps<{ mode: Mode; name?: string }>();
@@ -25,6 +27,17 @@ const props = defineProps<{ mode: Mode; name?: string }>();
 .workspace {
   height: 100%;
   overflow: auto;
-  padding: 24px 28px 32px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.banner-spacing {
+  align-self: stretch;
+  max-width: 1080px;
+  margin: 24px auto 0;
+  padding: 0 28px;
+  width: 100%;
 }
 </style>

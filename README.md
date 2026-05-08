@@ -1,172 +1,186 @@
+<div align="center">
+
 # Rathole Launcher
 
-A cross-platform graphical launcher for [rathole](https://github.com/rathole-org/rathole), the high-performance reverse proxy.
+The friendliest way to run [rathole](https://github.com/rathole-org/rathole) — a desktop app that turns reverse-proxy tunnels into a few clicks, on macOS, Windows and Linux.
 
-The launcher is meant for users who want to run rathole on their own machines without dealing with the command line. It edits TOML configuration files through a friendly UI, starts and stops local instances, surfaces real-time logs and lets you keep multiple server / client profiles side by side.
+**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-The launcher does **not** ship rathole itself. You drop a `rathole` binary next to the launcher executable and it picks it up automatically.
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](../../releases)
+[![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)](https://tauri.app)
+[![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?logo=vue.js&logoColor=white)](https://vuejs.org)
+[![Rust](https://img.shields.io/badge/Rust-stable-DEA584?logo=rust&logoColor=white)](https://www.rust-lang.org)
 
-## Features
+[Download](../../releases) · [Highlights](#highlights) · [Quick start](#quick-start) · [Build from source](#build-from-source)
 
-- Server and Client modes, each with as many named configurations as you need.
-- Visual editing for every documented rathole option:
-  - `bind_addr` / `remote_addr`, `default_token`, heartbeat / retry tuning.
-  - Per-service `type`, `bind_addr` / `local_addr`, `token`, `nodelay`, `retry_interval`.
-  - Transport selection (`tcp`, `tls`, `noise`, `websocket`) with all matching subfields.
-- Start / stop with graceful shutdown (SIGTERM → SIGKILL on Unix, TerminateProcess on Windows).
-- Live log streaming with stdout / stderr / system tagging and a 1000-line ring buffer.
-- Pre-flight port-conflict check before starting a server profile.
-- Detection of other rathole processes on the system (the launcher never touches anything it did not start itself).
-- Configuration files are stored as plain TOML in `server_conf/` and `client_conf/`, so you can hand-edit or version-control them if you wish.
-- UI translated into Simplified Chinese, English, Japanese and Korean. The selection is auto-detected on first launch and can be changed at any time from the sidebar or `Settings`.
+</div>
 
-## Repository layout
+<p align="center">
+  <img src="docs/screenshots/launcher-client.png" alt="Rathole Launcher main window" width="780" />
+</p>
 
-```
-rathole-gui-launcher/
-├── package.json              Frontend dependencies and scripts
-├── vite.config.ts            Vite + Vue plugin configuration
-├── tsconfig*.json            TypeScript project references
-├── index.html                Vite entry
-├── src/                      Vue 3 application
-│   ├── main.ts
-│   ├── App.vue
-│   ├── api/                  invoke wrappers and event listeners
-│   ├── components/           UI components (layout, editors, panels)
-│   ├── composables/          useLanguage, etc.
-│   ├── i18n/                 vue-i18n setup + zh-CN / en / ja / ko locale JSON
-│   ├── router/
-│   ├── stores/               Pinia stores (app, configs, runtime)
-│   ├── styles/
-│   ├── types/                TS types mirroring the Rust models
-│   ├── utils/
-│   └── views/
-└── src-tauri/                Tauri 2 / Rust backend
-    ├── Cargo.toml
-    ├── tauri.conf.json
-    ├── build.rs
-    ├── capabilities/
-    ├── icons/                Placeholder icons (regenerate with `tauri icon`)
-    └── src/
-        ├── main.rs
-        ├── lib.rs            Builder, command registration, lifecycle
-        ├── commands.rs       All `#[tauri::command]` handlers
-        ├── error.rs          Serializable error type
-        ├── paths.rs          Cross-platform path resolution
-        ├── models/           Server / client TOML models
-        ├── store/            Config CRUD, settings persistence
-        └── runtime/          Process manager, port checks, ps lookup
-```
+---
 
-## Toolchain
+## Why we built this
 
-- Node.js 18+
-- Rust 1.77+ (stable)
-- Platform prerequisites for Tauri 2 — see <https://tauri.app/start/prerequisites/>
+If you've ever set up rathole, you know the drill: SSH into a server, edit two TOML files, copy tokens around, restart the daemon, tail stderr, hope nothing was off by a character. It's a tool that does its job beautifully — once you've fought through the configuration ritual.
 
-## Development
+Rathole Launcher exists to skip that ritual. Every option has a form field. Tokens auto-fill from your server config. Logs stream live. Start, stop and restart are a click each. When the launcher itself crashes, the tunnels keep running and the next launch quietly re-attaches to them. We wanted the tool we wished we had on day one — and we figured you might want it too.
+
+---
+
+## Highlights
+
+### 🪟 A visual editor for the entire rathole spec
+
+Every documented option is reachable through a friendly form: addresses, tokens, heartbeats, retries, per-service overrides, and the whole transport zoo (TCP, TLS, Noise, WebSocket) with their respective sub-fields. The advanced section is collapsed by default, so simple setups stay simple.
+
+### 🚀 Start, stop, watch, restart — all in one window
+
+A sticky control bar at the top of every editor exposes start, stop, save and restart. Logs stream beneath it in real time, color-coded by source, capped at 1000 lines per instance. Save changes while a tunnel is running and a yellow strip appears that turns "apply the new config" into a single click.
+
+### 🤖 Bring your own rathole — or let us fetch it
+
+If no rathole binary is found alongside the launcher, an in-app banner offers to download the latest release from `rathole-org/rathole`, picking the right archive for your OS and CPU. Apple Silicon transparently falls back to the Intel build via Rosetta 2 when no native ARM asset is published yet. The launcher also checks for new releases on every launch and lets you know in the same place.
+
+### 📋 Drop in your `server.toml`, get a working client
+
+Click **+** in the sidebar, switch to **Import from server TOML**, paste your server file, click **Parse**. Service names, tokens and transport settings are extracted automatically; you only need to map each remote service to a local address. Done.
+
+### 🛟 Survives crashes — its own and yours
+
+Every rathole PID started by the launcher is persisted to disk. If the launcher dies (power outage, OOM, an accidental `kill -9`), the rathole children keep tunneling — they get re-parented to launchd / init / systemd and carry on. When the launcher comes back it spots the orphans, re-attaches, and lets you manage them again.
+
+### 🍴 Tray-resident on all three desktops
+
+Closing the window doesn't quit the app; it slides into the macOS menu bar, the Windows tray or the Linux status notifier. From there you can open, start or stop any configuration, see the running count at a glance, or actually quit — which gracefully shuts down every tunnel first.
+
+### 🌍 Speaks four languages
+
+The full UI **and** the tray menu are translated into **Simplified Chinese, English, Japanese and Korean**. The active language is auto-detected from your system locale, persisted across launches, and switchable from the bottom-left language picker without a reload.
+
+### 🤝 Plays nice with neighbors
+
+The launcher only ever touches processes it started. Anything else running rathole on the box is left alone, and shown in **Settings** with a clear "external" badge. If you try to start a server profile whose ports are already in use, the launcher refuses and tells you exactly which addresses collide.
+
+---
+
+## Quick start
+
+### 1. Install
+
+Pre-built bundles are attached to every [GitHub Release](../../releases):
+
+| Platform | Grab | Run |
+| --- | --- | --- |
+| **macOS** (Apple Silicon / Intel) | `*.dmg` | Drag to `Applications`, right-click → **Open** the first time |
+| **Windows** (x64) | `*.msi` or `*-setup.exe` | Run the installer |
+| **Linux** (x64) | `*.AppImage` / `*.deb` / `*.rpm` | `chmod +x` then run, or use your package manager |
+
+Bundles are unsigned by default, so the OS will warn on first launch — that's expected. Sign with your own certificate if you'd like to skip the prompt.
+
+### 2. Get a rathole binary
+
+On first launch, if no `rathole` is found next to the app, you'll see this banner:
+
+> **rathole binary not detected**
+> Download rathole 0.5.0 from GitHub, or override the path under Settings.
+> &nbsp; &nbsp; **[ Download now ]** &nbsp; **[ Open Settings ]**
+
+Click **Download now**, wait a few seconds, you're done. Prefer your own copy? Drop it next to the launcher or point at any path under **Settings**.
+
+### 3. Configure
+
+Two paths, pick whichever feels less work:
+
+**Manual** — Click **+** in the sidebar, fill in the form. Each saved profile becomes plain TOML in `server_conf/` or `client_conf/` next to the launcher, so you can hand-edit or version-control them later.
+
+**Import from server TOML** *(recommended for clients)* — Click **+**, switch to **Import from server TOML**, paste your server file, click **Parse**. Map each remote service to a local address (e.g. `127.0.0.1:22`), click **Create**. A complete client config drops into place.
+
+### 4. Run
+
+Hit **Start**. Logs come alive. If everything checks out, you'll see services registering with the server within a second or two. If a port is already taken or a token is off by a character, you'll know — and where to fix it.
+
+---
+
+## Build from source
+
+### Prerequisites
+
+- **Node.js** ≥ 18
+- **Rust** stable ≥ 1.77 — install via [rustup](https://rustup.rs)
+- **Tauri 2 platform deps** — see the [official guide](https://tauri.app/start/prerequisites/) (Xcode CLT on macOS, MSVC build tools on Windows, GTK + WebKit2GTK 4.1 + libsoup-3 + libappindicator on Linux)
+
+### Develop
 
 ```sh
+git clone https://github.com/<owner>/rathole-gui-launcher.git
+cd rathole-gui-launcher
 npm install
 npm run tauri:dev
 ```
 
-The first `tauri:dev` build will compile the Rust backend; subsequent runs are incremental. `server_conf/` and `client_conf/` are created next to the dev binary the first time the launcher starts.
+The first compile pulls roughly 600 Rust crates and takes 5–15 minutes depending on the machine; later runs are incremental and quick.
 
-To work on the Vue layer in isolation:
+### Bundle locally
 
-```sh
-npm run dev
-```
-
-(Note: most actions invoke Tauri commands, so the standalone web mode is for layout work only.)
-
-## Building release bundles
-
-```sh
-npm run tauri:build
-```
-
-This produces an installer / app bundle under `src-tauri/target/release/bundle/`:
-
-- macOS — `.app` and `.dmg`
-- Windows — `.msi` and `.exe`
-- Linux — `.deb`, `.rpm`, `.AppImage` (depending on packaging tools available on the host)
-
-### One-shot local build scripts
-
-The `scripts/` folder contains a single-command builder for each platform. Each script verifies the toolchain, installs dependencies and produces the platform's bundles.
+The `scripts/` folder ships a one-shot builder per platform. Each script verifies the toolchain, installs dependencies, runs `tauri build` and prints the final bundle paths.
 
 | Platform | Command |
 | --- | --- |
-| macOS  | `./scripts/build-macos.sh` (optional flags: `--silicon`, `--intel`, `--universal`) |
-| Linux  | `./scripts/build-linux.sh` |
-| Windows | `pwsh scripts/build-windows.ps1` (or `powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1`) |
+| **macOS** | `./scripts/build-macos.sh` &nbsp; *(optional: `--silicon`, `--intel`, `--universal`)* |
+| **Linux** | `./scripts/build-linux.sh` |
+| **Windows** | `pwsh scripts/build-windows.ps1` |
 
-When everything is set up, the launcher binary lives at `src-tauri/target/release/` (or under a target-specific subdirectory when cross-compiling), and the bundles are inside `src-tauri/target/.../release/bundle/`. Each script prints the exact paths when it finishes.
+### Cut a release via GitHub Actions
 
-### Icons
-
-The repository ships placeholder icons that satisfy the Tauri config schema during `tauri dev`. Before publishing release bundles, replace them with your own:
+`.github/workflows/release.yml` builds for **macOS Apple Silicon, macOS Intel, Windows x64 and Linux x64** in parallel and attaches every artifact to a draft GitHub Release whenever you push a `v*` tag:
 
 ```sh
-npm run tauri -- icon path/to/source.png
+# Bump the version in src-tauri/tauri.conf.json, commit, then:
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-This regenerates `src-tauri/icons/` with platform-correct PNG / ICNS / ICO files.
+Apple and Windows code signing kick in automatically when the matching repo secrets are present (`APPLE_CERTIFICATE`, `TAURI_SIGNING_PRIVATE_KEY`, …). Without them the workflow simply produces unsigned bundles — perfectly fine for early releases.
 
-## Distributing alongside rathole
+---
 
-The launcher resolves the rathole binary (and its config folders) relative to its own executable:
+## Tech stack
 
-| Platform | Default rathole location | Config folders |
-| --- | --- | --- |
-| macOS  | next to the `.app` bundle | next to the `.app` bundle |
-| Windows | next to `rathole-launcher.exe` | next to the `.exe` |
-| Linux  | next to the binary | next to the binary |
-
-Drop the rathole binary into that location after installing the launcher and the launcher will pick it up automatically. The path can also be overridden under `Settings`.
-
-## Cutting a release on GitHub
-
-A release workflow is committed at `.github/workflows/release.yml`. It builds the launcher for macOS (Apple Silicon and Intel), Windows x64 and Linux x64 in parallel and attaches every bundle to a **draft** GitHub release.
-
-To cut a release:
-
-1. Bump the version in [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json) (and optionally `package.json`) and commit.
-2. Tag the commit and push the tag:
-
-   ```sh
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-3. The workflow runs automatically. When all jobs finish, a draft release named `Rathole Launcher 0.1.0` will appear under the repository's **Releases** page with the bundles attached.
-4. Review the draft, edit the notes if needed, and publish it.
-
-The matrix produces:
-
-| Job | Bundle artifacts |
+| Layer | Tools |
 | --- | --- |
-| `aarch64-apple-darwin` | `.app.tar.gz`, `.dmg` |
-| `x86_64-apple-darwin` | `.app.tar.gz`, `.dmg` |
-| `x86_64-unknown-linux-gnu` | `.deb`, `.AppImage`, `.rpm` |
-| `x86_64-pc-windows-msvc` | `.msi`, NSIS `setup.exe` |
+| Window shell | [Tauri 2](https://tauri.app) |
+| Frontend | [Vue 3](https://vuejs.org) with `<script setup>`, [Vue Router](https://router.vuejs.org), [Pinia](https://pinia.vuejs.org), [Vue I18n](https://vue-i18n.intlify.dev) |
+| UI library | [Antdv Next](https://github.com/antdv-next/antdv-next) — modern Vue 3 rewrite of Ant Design Vue |
+| Backend | Rust + Tokio · [reqwest](https://crates.io/crates/reqwest) (rustls) · [sysinfo](https://crates.io/crates/sysinfo) · [zip](https://crates.io/crates/zip) · [toml](https://crates.io/crates/toml) (order-preserving) · [nix](https://crates.io/crates/nix) |
+| Build | Vite, vue-tsc, tauri-cli |
 
-The workflow also accepts a manual `workflow_dispatch` trigger from the Actions tab. When triggered manually it only builds and uploads the artifacts to the workflow run (nothing is released), which is convenient for verifying changes without cutting a tag.
+---
 
-### Code signing
+## Contributing
 
-The workflow reads the Apple and Windows signing secrets if they are set, otherwise it produces unsigned bundles. Add these repository secrets to enable signing:
+We'd love help. A few practical hints to make things smooth:
 
-- macOS: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`
-- Windows: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+- Run the dev workflow above, then format with `cargo fmt` (Rust) and Prettier defaults (TS / Vue) before sending a PR.
+- New i18n strings go into all four locale files under `src/i18n/locales/` — keep the keys in sync.
+- Adding a rathole config field? Mirror the change in both the Rust models (`src-tauri/src/models/`) and the TS types (`src/types/rathole.ts`).
+- Anything bigger than a fix? Open an issue first; we'd love to talk through the design before code lands.
 
-See the [tauri-action documentation](https://github.com/tauri-apps/tauri-action) for the full list of supported signing variables.
+## Roadmap
 
-## Coexisting with other rathole instances
+A few directions we're thinking about — happy to take help on any of them:
 
-The launcher only manages processes it spawned itself; any rathole already running on the machine is left untouched. The `Settings` page lists every detected rathole process so you can tell which ones are managed by the launcher and which are external. When you try to start a server configuration whose ports are already in use the launcher refuses to spawn the process and reports the conflicting addresses.
+- Dark mode
+- Per-service status chips inside the editor
+- Built-in self-signed TLS cert generator for quick LAN setups
+- Optional bundled `rathole` binary for fully offline distribution
+
+## Acknowledgements
+
+Built on the shoulders of the excellent [rathole](https://github.com/rathole-org/rathole) project. None of this would matter without their work.
 
 ## License
 
-MIT.
+[MIT](LICENSE) — fork it, ship it, sell it. A mention in your release notes is appreciated but not required.

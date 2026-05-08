@@ -7,27 +7,6 @@
       {{ lead }}
     </p>
 
-    <div v-if="!appStore.info?.rathole_exists" class="warning rl-card">
-      <div class="warning-row">
-        <ExclamationCircleFilled class="warning-icon" />
-        <div>
-          <div class="warning-title">{{ t("welcome.warningTitle") }}</div>
-          <div class="warning-detail">
-            <i18n-t keypath="welcome.warningDetail" tag="span">
-              <template #bin>
-                <code class="rl-mono">{{ binaryName }}</code>
-              </template>
-              <template #dir>
-                <code class="rl-mono">{{ appStore.info?.app_data_dir }}</code>
-              </template>
-              <template #settings>
-                <a @click="goSettings">{{ t("welcome.warningSettingsLink") }}</a>
-              </template>
-            </i18n-t>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <div class="cards">
       <div class="rl-card guide-card">
@@ -80,16 +59,13 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { ExclamationCircleFilled } from "@ant-design/icons-vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { useAppStore } from "@/stores/app";
 import { useConfigStore } from "@/stores/configs";
 import { useRuntimeStore } from "@/stores/runtime";
 import type { Mode, RunState } from "@/types/rathole";
 
 const props = defineProps<{ mode: Mode }>();
 const router = useRouter();
-const appStore = useAppStore();
 const configStore = useConfigStore();
 const runtimeStore = useRuntimeStore();
 const { t } = useI18n();
@@ -104,9 +80,6 @@ const lead = computed(() =>
 const emptyHint = computed(() =>
   props.mode === "server" ? t("welcome.emptyHintServer") : t("welcome.emptyHintClient"),
 );
-const binaryName = computed(() =>
-  appStore.info?.platform === "windows" ? "rathole.exe" : "rathole",
-);
 
 function statusFor(name: string): RunState | "stopped" {
   return runtimeStore.statusOf(props.mode, name)?.state ?? "stopped";
@@ -115,16 +88,13 @@ function statusFor(name: string): RunState | "stopped" {
 function open(name: string) {
   router.push({ name: `${props.mode}-detail`, params: { name } });
 }
-
-function goSettings() {
-  router.push({ name: "settings" });
-}
 </script>
 
 <style lang="less" scoped>
 .welcome {
   max-width: 880px;
   margin: 0 auto;
+  padding: 24px 28px 32px;
   display: flex;
   flex-direction: column;
   gap: 18px;

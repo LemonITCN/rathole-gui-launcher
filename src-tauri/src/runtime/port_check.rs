@@ -64,7 +64,7 @@ pub fn find_external_rathole(managed_pids: &[u32]) -> Vec<ExternalRathole> {
     sys.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
-        ProcessRefreshKind::nothing().with_cmd(sysinfo::UpdateKind::OnlyIfNotSet),
+        ProcessRefreshKind::new().with_cmd(sysinfo::UpdateKind::OnlyIfNotSet),
     );
     let mut out = Vec::new();
     for (pid, proc) in sys.processes() {

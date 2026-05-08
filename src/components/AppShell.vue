@@ -58,10 +58,11 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { PlusOutlined, SettingOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined, SettingOutlined } from "@antdv-next/icons";
 import ConfigList from "@/components/ConfigList.vue";
 import CreateConfigModal from "@/components/CreateConfigModal.vue";
 import LanguagePicker from "@/components/LanguagePicker.vue";
+import { persistMode } from "@/router";
 import type { Mode } from "@/types/rathole";
 
 const router = useRouter();
@@ -84,6 +85,8 @@ watch(
     if (name === "client" || name === "client-detail") activeMode.value = "client";
   },
 );
+
+watch(activeMode, (next) => persistMode(next), { immediate: true });
 
 function deriveMode(name: string): Mode {
   if (name === "client" || name === "client-detail") return "client";

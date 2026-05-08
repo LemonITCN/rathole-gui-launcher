@@ -147,3 +147,27 @@ export interface Settings {
   auto_resume: boolean;
   language?: string;
 }
+
+export interface AssetInfo {
+  name: string;
+  url: string;
+  size: number;
+  target: string;
+}
+
+export interface UpdateCheckResult {
+  installed_version?: string;
+  latest_version?: string;
+  release_name?: string;
+  published_at?: string;
+  asset?: AssetInfo;
+  update_available: boolean;
+  binary_present: boolean;
+  github_reachable: boolean;
+  error?: string;
+}
+
+export interface DownloadProgress {
+  downloaded: number;
+  total?: number;
+}

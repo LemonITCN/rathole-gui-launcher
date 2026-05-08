@@ -9,6 +9,7 @@ mod models;
 mod paths;
 mod runtime;
 mod store;
+mod tray;
 
 pub use error::{AppError, AppResult};
 
@@ -23,8 +24,42 @@ pub fn run() {
             let settings = Arc::new(RwLock::new(store::Settings::load()));
             app.manage::<store::SettingsHandle>(settings);
             let manager = Arc::new(runtime::ProcessManager::new(app.handle().clone()));
+            let manager_for_adopt = manager.clone();
             app.manage(manager);
+            tray::setup(app.handle())?;
+
+            // Re-attach to any rathole process the previous launcher session
+            // left running. If the launcher was killed unexpectedly the
+            // child rathole stays alive (re-parented to launchd / init);
+            // adopting it lets the user manage it again instead of having
+            // an invisible orphan.
+            tauri::async_runtime::spawn(async move {
+                let state = store::runtime_state::load();
+                for inst in state.instances {
+                    let Ok(mode) = paths::Mode::from_str(&inst.mode) else {
+                        store::runtime_state::remove(&inst.mode, &inst.name);
+                        continue;
+                    };
+                    if manager_for_adopt
+                        .clone()
+                        .adopt(mode, inst.name.clone(), inst.pid, inst.started_at)
+                        .await
+                        .is_err()
+                    {
+                        store::runtime_state::remove(&inst.mode, &inst.name);
+                    }
+                }
+            });
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Closing the main window only hides it; the app keeps running in
+            // the menu bar / tray with the rathole instances still alive.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_app_info,
@@ -45,15 +80,18 @@ pub fn run() {
             commands::check_ports,
             commands::find_external_rathole,
             commands::open_conf_dir,
+            commands::parse_server_toml,
+            commands::check_rathole_update,
+            commands::download_rathole_release,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build tauri application");
 
     app.run(|handle, event| match event {
-        RunEvent::WindowEvent {
-            event: WindowEvent::CloseRequested { .. },
-            ..
-        } => {
+        RunEvent::ExitRequested { .. } => {
+            // Real quit (Cmd+Q, tray Quit, or programmatic exit). Stop every
+            // rathole child before letting the process leave so the user
+            // never finds an orphaned daemon after closing the launcher.
             if let Some(mgr) = handle.try_state::<Arc<runtime::ProcessManager>>() {
                 let mgr = mgr.inner().clone();
                 tauri::async_runtime::block_on(async move {
@@ -61,12 +99,13 @@ pub fn run() {
                 });
             }
         }
-        RunEvent::ExitRequested { .. } => {
-            if let Some(mgr) = handle.try_state::<Arc<runtime::ProcessManager>>() {
-                let mgr = mgr.inner().clone();
-                tauri::async_runtime::block_on(async move {
-                    mgr.stop_all().await;
-                });
+        RunEvent::Reopen { has_visible_windows, .. } => {
+            // macOS dock-icon click while the window is hidden brings it back.
+            if !has_visible_windows {
+                if let Some(window) = handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
         }
         _ => {}
